@@ -1,0 +1,120 @@
+
+#macro DataCrawler (rawDataCrawler())
+
+function rawDataCrawler() {
+	static instance = new function() constructor {
+		Folder = "Resources/content/";
+		Tree = {
+			Serialize: function() {return {type: "undefined", content: []}}
+		}
+		// returns main or additional folders
+		function GetFolder() {
+			return Folder;
+		}
+		
+		function SetFolder(value) {
+			Folder = value;
+		}
+			
+		function Scan(folder) {
+			if (folder == undefined) {
+				folder = GetFolder();
+				Tree = Scan(folder);
+				return Tree;
+			}
+				
+			var content = [];
+			
+			// search for files
+			var f = file_find_first(folder + "*", 0);
+			while(f != "") {
+				array_push(content, new fabricFile(folder + f));
+				f = file_find_next();
+			}
+			file_find_close();
+			
+			// search for folders
+			var folders = [];
+			var f = file_find_first(folder + "*", fa_directory);
+			while(f != "") {
+				if (directory_exists(folder + f))
+					array_push(folders, f);
+				f = file_find_next();
+			}
+			file_find_close();
+			for(var i = 0; i < array_length(folders); i++) {
+				array_push(content, Scan(folder + folders[i] + "/"))
+			}
+			
+			return new fabricFolder(folder, content);
+		}
+		
+		fabricFolder = function(path, content) constructor {
+			type = "Folder"
+			
+			self.path = path;
+			self.content = content;
+			name = filename_name(string_delete(path, string_length(path), 1));
+			parent = undefined;
+			
+			folders = [];
+			files = [];
+			for(var i = 0; i < array_length(content); i++) {
+				var node = content[i];
+				node.parent = self;
+				
+				if (node.type == "File")
+					array_push(files, node);
+				if (node.type == "Folder")
+					array_push(folders, node);
+			}
+			Serialize = function() {
+				var s = {
+					path: path,
+					name: name,
+					type: type,
+					content: []
+				}
+				
+				for(var i = 0; i < array_length(folders); i++) {
+					array_push(s.content, folders[i].Serialize());
+				}
+				for(var i = 0; i < array_length(files); i++) {
+					array_push(s.content, files[i].Serialize());
+				}
+				
+				return s;
+			}
+		}
+		
+		fabricFile = function(path) constructor {
+			type = "File";
+			
+			self.path = path;
+			name = filename_name(path);
+			extension = filename_ext(path);
+			shortname = string_replace(name, extension, "");
+			parent = undefined;
+			
+			Read = function() {
+				var content = "";
+				var f = file_text_open_read(path);
+				while(!file_text_eof(f)) {
+					content += file_text_read_string(f);
+					file_text_readln(f);
+				}
+				file_text_close(f);
+			}
+				
+			Serialize = function() {
+				return {
+					type: type,
+					path: path,
+					name: name
+				}
+			}
+		}
+	}();
+	
+	return instance;
+}
